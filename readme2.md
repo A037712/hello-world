@@ -28,8 +28,8 @@ Lastly, a recon_test flow was created for testing/POC purposes.  This matches th
 
 After UAT, the recon_test and mixed_cube_master flows can be deleted.
 
-## Jenkin Jobs for this Repo
-### NONPROD
+## Jenkins Jobs for this Repo
+### NONPROD (NOTE:  SPs are only defined to Prod Snowflake)
 DEV/QA:
 https://jenkinsx.pgraws98.com/job/Product_Metrics_DSS_DE_FLOW/
 
@@ -52,17 +52,17 @@ The tables are supplied in the master_recon_check_flow/sql/ directory in text fi
 
 The following is a listing of which process dates are utilized for which tables.
 
-Database                Process_Date
------------             ------------
-mdw_copy                last calendar day of prior month
-plr_copy                current date
-plr_copy                last calendar day of prior month
-sls_copy                last calendar day of prior month
-adw_copy                prior day
-common_dimension        prior day
-telematics              prior day
-customerhub_profiles    prior day
-dca_copy                prior day
+|Database               |Process_Date                           |
+|-----------------------|---------------------------------------|
+|mdw_copy               |last calendar day of prior month       |
+|plr_copy               |current date                           |
+|plr_copy               |last calendar day of prior month       |
+|sls_copy               |last calendar day of prior month       |
+|adw_copy               |prior day                              |
+|common_dimension       |prior day                              |
+|telematics             |prior day                              |
+|customerhub_profiles   |prior day                              |
+|dca_copy               |prior day                              |
 
 If rows exist in the reconciliation tables, then the flow will proceed and execution the stored procedures in sequential order, as defined by the flow.
 
@@ -74,69 +74,69 @@ To assist in reconciliation checking, the following query was created.  This rel
 
 The output of the query will contain any database table that the flow is dependent upon that is currently out of date.
 
-Query:
---RECON check with CTEs
-with recon_cte as (
-        select
-            r.db_name,
-            r.tb_name,
-            max(l.process_date_time) as max_process_date_time,
-            r.freq
-        from
-            PL_PRODUCT_METRICS.TARGET.RECON_STATUS r
-            left join dss_operational_data.data_pipeline_reconciliation.reconciliation_log l
-                on upper(l.reconciliation_database) = upper(r.db_name)
-                and upper(l.reconciliation_name) = upper(r.tb_name)
-            left join dss_operational_data.data_pipeline_reconciliation.reconciliation_counts c
-                on l.reconciliation_id = c.reconciliation_id
-        where
-            c.row_count_type = 'final - target'
-            --needed to add the code below due to plr_copy.pol_dates_sl having process date='2022-12-31'
-            and l.process_date_time <= current_date()
-        group by
-            r.db_name,
-            r.tb_name,
-            r.freq
-        UNION
-        select
-            r.db_name,
-            r.tb_name,
-            max(l.process_date) as max_process_date_time,
-            r.freq
-        from
-            PL_PRODUCT_METRICS.TARGET.RECON_STATUS r
-            left join customerhub_profiles.control.reconciliation_log l
-                on upper(l.reconciliation_name) = upper(r.tb_name)
-            left join customerhub_profiles.control.reconciliation_counts c
-                on l.reconciliation_id = c.reconciliation_id
-        where
-            c.reconciliation_type = 'final'
-        group by
-            r.db_name,
-            r.tb_name,
-            r.freq
-    ),
-    check_cte as(
-        select
-            db_name,
-            tb_name,
-            max_process_date_time,
-            case
-                when freq = 'CURRENT_DATE()' then CURRENT_DATE()
-                when freq = 'CURRENT_DATE()-1' then CURRENT_DATE() -1
-                --when freq = 'CURRENT_DATE()-2' then CURRENT_DATE() -2
-                when freq = 'last_day(dateadd(''month'',-1,current_date))' then last_day(dateadd('month', -1, current_date))
-            end as expected_date
-        from
-            recon_cte
-    )
+Query:  
+--RECON check with CTEs  
+  
+with recon_cte as (  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;select  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;r.db_name,  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;r.tb_name,   
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;max(l.process_date_time) as max_process_date_time,   
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;r.freq  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;from   
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;PL_PRODUCT_METRICS.TARGET.RECON_STATUS r    
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;left join dss_operational_data.data_pipeline_reconciliation.reconciliation_log l  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;on upper(l.reconciliation_database) = upper(r.db_name)  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;and upper(l.reconciliation_name) = upper(r.tb_name)  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;left join dss_operational_data.data_pipeline_reconciliation.reconciliation_counts c  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;on l.reconciliation_id = c.reconciliation_id  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;where  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;c.row_count_type = 'final - target'  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;--needed to add the code below due to plr_copy.pol_dates_sl having process date='2022-12-31'  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;and l.process_date_time <= current_date()  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;group by  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;r.db_name,  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;r.tb_name,  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;r.freq  
+UNION  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;select  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;r.db_name,  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;r.tb_name,  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;max(l.process_date) as max_process_date_time,  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;r.freq  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;from  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;PL_PRODUCT_METRICS.TARGET.RECON_STATUS r   
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;left join customerhub_profiles.control.reconciliation_log l  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;on upper(l.reconciliation_name) = upper(r.tb_name)  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;left join customerhub_profiles.control.reconciliation_counts c  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;on l.reconciliation_id = c.reconciliation_id  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;where  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;c.reconciliation_type = 'final'  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;group by  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;r.db_name,  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;r.tb_name,  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;r.freq  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;),  
+    check_cte as(  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;select  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;db_name,  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;tb_name,  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;max_process_date_time,  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;case  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;when freq = 'CURRENT_DATE()' then CURRENT_DATE()  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;when freq = 'CURRENT_DATE()-1' then CURRENT_DATE() -1  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;when freq = 'last_day(dateadd(''month'',-1,current_date))' then last_day(dateadd('month', -1, current_date))  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;end as expected_date  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;from  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;recon_cte  
+    )  
 
-select
-    *
+select  
+    *  
 from
-    check_cte
+    check_cte  
 where
-    expected_date <> max_process_date_time order by 1, 2;
+    expected_date <> max_process_date_time order by 1, 2;  
 
 
 
